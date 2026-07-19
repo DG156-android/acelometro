@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MPU6050 + ESP32</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="board-noise"></div>
+
+<nav class="dots" id="dots"></nav>
+
+<div class="progress-trace">
+  <svg viewBox="0 0 4 100" preserveAspectRatio="none">
+    <line x1="2" y1="0" x2="2" y2="100" class="trace-bg"/>
+    <line x1="2" y1="0" x2="2" y2="0" class="trace-fill" id="traceFill"/>
+  </svg>
+</div>
+
+<main id="deck">
+
+  <!-- SLIDE 0 — COVER -->
+  <section class="slide cover" data-index="0">
+    <div class="pad pad-tl">VCC</div>
+    <div class="pad pad-tr">GND</div>
+    <div class="pad pad-bl">SDA</div>
+    <div class="pad pad-br">SCL</div>
+    <div class="cover-content">
+      <span class="eyebrow">// lectura de acelerómetro &amp; giroscopio</span>
+      <h1>MPU6050<span class="dim">×</span>ESP32</h1>
+      <p class="lede">Dos formas de leer el mismo sensor: una con librería, otra hablando directo al registro I2C.</p>
+      <div class="cover-legend">
+        <span class="chip chip-arduino">Arduino · C++</span>
+        <span class="chip chip-python">MicroPython</span>
+      </div>
+    </div>
+    <div class="scroll-hint">desliza <span class="arrow">↓</span></div>
+  </section>
+
+  <!-- SLIDE 1 — HARDWARE -->
+  <section class="slide" data-index="1">
+    <span class="slide-tag">01 — conexión</span>
+    <h2>Cuatro cables, un bus I2C</h2>
+    <div class="hw-grid">
+      <div class="hw-diagram">
+        <svg viewBox="0 0 340 220" class="wire-svg">
+          <rect x="10" y="60" width="90" height="110" rx="6" class="board esp"/>
+          <text x="55" y="120" class="board-label" text-anchor="middle">ESP32</text>
+          <rect x="240" y="70" width="90" height="90" rx="6" class="board imu"/>
+          <text x="285" y="120" class="board-label" text-anchor="middle">MPU6050</text>
+
+          <path d="M100 80 C 170 80, 170 90, 240 90" class="wire wire-vcc"/>
+          <path d="M100 95 C 175 95, 175 105, 240 105" class="wire wire-gnd"/>
+          <path d="M100 130 C 165 150, 200 150, 240 125" class="wire wire-sda"/>
+          <path d="M100 145 C 160 165, 210 165, 240 140" class="wire wire-scl"/>
+
+          <circle cx="100" cy="80" r="3.5" class="dot dot-vcc"/>
+          <circle cx="100" cy="95" r="3.5" class="dot dot-gnd"/>
+          <circle cx="100" cy="130" r="3.5" class="dot dot-sda"/>
+          <circle cx="100" cy="145" r="3.5" class="dot dot-scl"/>
+        </svg>
+        <div class="legend-row">
+          <span><i class="sw sw-vcc"></i>3V3 → VCC</span>
+          <span><i class="sw sw-gnd"></i>GND → GND</span>
+          <span><i class="sw sw-sda"></i>GPIO21 → SDA</span>
+          <span><i class="sw sw-scl"></i>GPIO22 → SCL</span>
+        </div>
+      </div>
+      <ul class="hw-notes">
+        <li><strong>Alimentación</strong> — el MPU6050 corre a 3.3–5V; con el ESP32 se usa la salida de 3V3.</li>
+        <li><strong>I2C</strong> — SDA y SCL son las únicas líneas de datos; el sensor responde en la dirección <code>0x68</code>.</li>
+        <li><strong>Un solo bus</strong> — se pueden colgar varios sensores I2C en los mismos dos cables.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- SLIDE 2 — ARDUINO -->
+  <section class="slide code-slide" data-index="2">
+    <span class="slide-tag chip-arduino-tag">02 — Arduino (C++)</span>
+    <h2>La vía cómoda: librería Adafruit</h2>
+    <div class="code-grid">
+      <pre class="code-block code-block-full"><code>#include &lt;Wire.h&gt;
+#include &lt;Adafruit_MPU6050.h&gt;
+#include &lt;Adafruit_Sensor.h&gt;
+
+Adafruit_MPU6050 mpu;
+
+void setup() {
+  Serial.begin(115200);
+  while (!Serial) delay(10);
+
+  Serial.println("Iniciando MPU6050...");
+
+  if (!mpu.begin()) {
+    Serial.println("No se encontró el sensor. Revisa las conexiones.");
+    while (1) delay(10);
+  }
+  Serial.println("MPU6050 encontrado!");
+
+  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+  mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+
+  delay(100);
+}
+
+void loop() {
+  sensors_event_t a, g, temp;
+  mpu.getEvent(&amp;a, &amp;g, &amp;temp);
+
+  Serial.print("Accel X: "); Serial.print(a.acceleration.x);
+  Serial.print(" | Y: "); Serial.print(a.acceleration.y);
+  Serial.print(" | Z: "); Serial.println(a.acceleration.z);
+
+  Serial.print("Gyro  X: "); Serial.print(g.gyro.x);
+  Serial.print(" | Y: "); Serial.print(g.gyro.y);
+  Serial.print(" | Z: "); Serial.println(g.gyro.z);
+
+  Serial.println("------------------------------------");
+  delay(500);
+}</code></pre>
+      <div class="code-explain">
+        <div class="step">
+          <span class="step-n">01 · librerías</span>
+          <p><code>Wire.h</code> maneja el bus I2C a bajo nivel; <code>Adafruit_MPU6050</code> y <code>Adafruit_Sensor</code> lo envuelven en funciones listas para usar, sin tocar registros a mano.</p>
+        </div>
+        <div class="step">
+          <span class="step-n">02 · setup()</span>
+          <p>Abre el puerto serie a 115200 baudios y espera a que esté listo. Llama a <code>mpu.begin()</code>; si no encuentra el sensor, queda atrapado en <code>while(1)</code> avisando el error para siempre.</p>
+        </div>
+        <div class="step">
+          <span class="step-n">03 · configuración</span>
+          <p>Tres ajustes clave: rango del acelerómetro ±8G (más rango, menos precisión fina), rango del giroscopio ±500°/s, y un filtro pasa-bajos de 21Hz que suaviza vibraciones y ruido eléctrico.</p>
+        </div>
+        <div class="step">
+          <span class="step-n">04 · loop()</span>
+          <p><code>mpu.getEvent(&amp;a,&amp;g,&amp;temp)</code> hace toda la lectura I2C internamente y devuelve tres structs ya en unidades físicas (m/s², rad/s). Se imprimen los 6 ejes y se repite cada 500ms.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SLIDE 3 — PYTHON -->
+  <section class="slide code-slide" data-index="3">
+    <span class="slide-tag chip-python-tag">03 — MicroPython</span>
+    <h2>La vía directa: registros crudos</h2>
+    <div class="code-grid">
+      <pre class="code-block code-block-full"><code>from machine import Pin, I2C
+import time
+
+i2c = I2C(0, scl=Pin(22), sda=Pin(21), freq=400000)
+MPU_ADDR = 0x68
+
+def mpu_init():
+    i2c.writeto_mem(MPU_ADDR, 0x6B, b'\x00')  # Despierta el sensor
+
+def read_word(reg):
+    high = i2c.readfrom_mem(MPU_ADDR, reg, 1)[0]
+    low = i2c.readfrom_mem(MPU_ADDR, reg + 1, 1)[0]
+    value = (high &lt;&lt; 8) | low
+    if value &gt;= 0x8000:
+        value -= 0x10000
+    return value
+
+def get_data():
+    ax = read_word(0x3B) / 16384.0
+    ay = read_word(0x3D) / 16384.0
+    az = read_word(0x3F) / 16384.0
+    gx = read_word(0x43) / 131.0
+    gy = read_word(0x45) / 131.0
+    gz = read_word(0x47) / 131.0
+    return ax, ay, az, gx, gy, gz
+
+mpu_init()
+time.sleep(0.5)
+
+while True:
+    ax, ay, az, gx, gy, gz = get_data()
+    print("Accel X:{:.2f}g Y:{:.2f}g Z:{:.2f}g".format(ax, ay, az))
+    print("Gyro  X:{:.2f}°/s Y:{:.2f}°/s Z:{:.2f}°/s".format(gx, gy, gz))
+    print("-" * 40)
+    time.sleep(0.5)</code></pre>
+      <div class="code-explain">
+        <div class="step">
+          <span class="step-n">01 · I2C manual</span>
+          <p>Se crea el bus I2C indicando explícitamente los pines: SCL en GPIO22, SDA en GPIO21, a 400kHz. Sin librería de sensor, solo el driver I2C del propio MicroPython.</p>
+        </div>
+        <div class="step">
+          <span class="step-n">02 · mpu_init()</span>
+          <p>El MPU6050 arranca en modo "sleep". Escribir <code>0x00</code> en el registro de gestión de energía <code>0x6B</code> lo despierta y empieza a muestrear.</p>
+        </div>
+        <div class="step">
+          <span class="step-n">03 · read_word()</span>
+          <p>Cada eje ocupa dos registros (byte alto y bajo). Se combinan con desplazamiento de bits <code>(high&lt;&lt;8)|low</code> y se convierte a complemento a dos si el valor es negativo.</p>
+        </div>
+        <div class="step">
+          <span class="step-n">04 · get_data()</span>
+          <p>Lee los seis registros crudos (0x3B–0x47) y los escala a unidades reales: entre 16384 para acelerómetro (±2g) y entre 131 para giroscopio (±250°/s).</p>
+        </div>
+        <div class="step">
+          <span class="step-n">05 · bucle principal</span>
+          <p>Inicializa el sensor, espera 0.5s a que estabilice, y luego imprime las 6 lecturas cada medio segundo indefinidamente.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SLIDE 4 — COMPARISON -->
+  <section class="slide" data-index="4">
+    <span class="slide-tag">04 — comparación</span>
+    <h2>Misma lectura, dos filosofías</h2>
+    <table class="compare-table">
+      <thead>
+        <tr><th></th><th class="c-arduino">Arduino + Adafruit</th><th class="c-python">MicroPython manual</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Abstracción</td><td>Alta — la librería habla I2C por ti</td><td>Ninguna — registros directos</td></tr>
+        <tr><td>Configuración</td><td>Funciones dedicadas (<code>setAccelerometerRange</code>)</td><td>Escritura manual de bytes en registros</td></tr>
+        <tr><td>Unidades</td><td>Ya convertidas en <code>sensors_event_t</code></td><td>Se convierten a mano con constantes</td></tr>
+        <tr><td>Control</td><td>Limitado a lo que expone la librería</td><td>Total — cualquier registro del datasheet</td></tr>
+        <tr><td>Ideal para</td><td>Prototipar rápido</td><td>Entender o optimizar el hardware</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- SLIDE 5 — CLOSING -->
+  <section class="slide cover closing" data-index="5">
+    <div class="cover-content">
+      <span class="eyebrow">// en resumen</span>
+      <h2 class="closing-h">Un mismo dato,<br>dos caminos al registro.</h2>
+      <p class="lede">La librería ahorra tiempo. Los registros crudos enseñan cómo funciona realmente el sensor por dentro.</p>
+    </div>
+  </section>
+
+</main>
+
+<script src="script.js"></script>
+</body>
+</html>
